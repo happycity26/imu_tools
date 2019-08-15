@@ -28,6 +28,9 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 
+bool timer_flag_for_drift=1;
+
+
 ImuFilterRos::ImuFilterRos(ros::NodeHandle nh, ros::NodeHandle nh_private):
   nh_(nh),
   nh_private_(nh_private),
@@ -177,7 +180,26 @@ void ImuFilterRos::imuCallback(const ImuMsg::ConstPtr& imu_msg_raw)
 
   last_time_ = time;
 
-  if (!stateless_)
+  //timer for gyro drift bias
+double secs =ros::Time::now().toSec();
+double last_sec;
+
+if(timer_flag_for_drift==1)
+{
+ last_sec=secs;
+timer_flag_for_drift=0;
+}
+
+//gyro drift calculation phase
+//duration is 30 seconds. If you want to change the drift compensation calculation duration change 30s to which duration you want in seconds
+double duration=30;
+  if (!stateless_ && secs-last_sec<duration )
+    filter_.madgwickCalculateGyroDrift(
+      ang_vel.x, ang_vel.y, ang_vel.z,
+      lin_acc.x, lin_acc.y, lin_acc.z,
+      dt);
+
+  if (!stateless_ && secs-last_sec >duration)
     filter_.madgwickAHRSupdateIMU(
       ang_vel.x, ang_vel.y, ang_vel.z,
       lin_acc.x, lin_acc.y, lin_acc.z,
