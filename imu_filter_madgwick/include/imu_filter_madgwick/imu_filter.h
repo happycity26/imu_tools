@@ -96,6 +96,10 @@ public:
                             float mx, float my, float mz,
                             float dt);
 
+    void madgwickCalculateGyroDrift(float gx, float gy, float gz,
+                               float ax, float ay, float az,
+                               float dt);
+
     void madgwickAHRSupdateIMU(float gx, float gy, float gz,
                                float ax, float ay, float az,
                                float dt);

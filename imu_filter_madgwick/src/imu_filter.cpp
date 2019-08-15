@@ -24,6 +24,15 @@
 
 #include <cmath>
 #include "imu_filter_madgwick/imu_filter.h"
+#include <ros/console.h>
+#include "imu_filter_madgwick/imu_filter_ros.h"
+
+//gyro drift compensation parameters
+float compensate_per_dt_x, compensate_per_dt_y, compensate_per_dt_z, compensate_per_dt_w;
+
+float dif_x=0, dif_y=0, dif_z=0, dif_w=0;
+bool initial_data=0;
+  float old_w_err_x, old_w_err_y, old_w_err_z, old_w_err_w ;
 
 // Fast inverse square-root
 // See: http://en.wikipedia.org/wiki/Methods_of_computing_square_roots#Reciprocal_of_the_square_root
@@ -87,18 +96,77 @@ static inline void compensateGyroDrift(
     float& gx, float& gy, float& gz)
 {
   // w_err = 2 q x s
+
+ // if magnetometer is used
   float w_err_x = 2.0f * q0 * s1 - 2.0f * q1 * s0 - 2.0f * q2 * s3 + 2.0f * q3 * s2;
   float w_err_y = 2.0f * q0 * s2 + 2.0f * q1 * s3 - 2.0f * q2 * s0 - 2.0f * q3 * s1;
   float w_err_z = 2.0f * q0 * s3 - 2.0f * q1 * s2 + 2.0f * q2 * s1 - 2.0f * q3 * s0;
 
+
+
+
+// if magnetometer is used
   w_bx += w_err_x * dt * zeta;
   w_by += w_err_y * dt * zeta;
   w_bz += w_err_z * dt * zeta;
 
+
+
   gx -= w_bx;
   gy -= w_by;
   gz -= w_bz;
-}
+
+ }
+
+// calculation phase of gyro drift bias directly from filtered output
+static inline void calculateGyroDriftWithoutMagnetometer(
+    float q0, float q1, float q2, float q3,
+    float dt,
+    bool& initial_data)
+{
+  // w_err = 2 q x s
+
+  float new_w_err_w = q0;
+  float new_w_err_x = q1;
+  float new_w_err_y =  q2;
+  float new_w_err_z =  q3;
+
+
+
+
+  if(initial_data != 0)
+  {
+    dif_w+= new_w_err_w - old_w_err_w;
+    dif_x+= new_w_err_x - old_w_err_x;
+    dif_y+= new_w_err_y - old_w_err_y;
+    dif_z+= new_w_err_z - old_w_err_z;
+
+  }
+
+  initial_data=1;
+
+  old_w_err_w = new_w_err_w;
+  old_w_err_x = new_w_err_x;
+  old_w_err_y = new_w_err_y;
+  old_w_err_z = new_w_err_z;
+
+
+
+// change the denominator 30 to what second you want ,but change in the ros node as well
+
+  float duration=30;
+
+  ROS_INFO_ONCE("Please wait, gyro drift is estimating now. It would take %f seconds. Do NOT move the car.",duration);
+
+   compensate_per_dt_w = dif_w  / duration;
+  compensate_per_dt_x = dif_x  / duration;
+  compensate_per_dt_y = dif_y / duration;
+  compensate_per_dt_z = dif_z  / duration;
+
+  
+
+ }
+
 
 static inline void orientationChangeFromGyro(
     float q0, float q1, float q2, float q3,
@@ -182,6 +250,8 @@ void ImuFilter::madgwickAHRSupdate(
   float qDot1, qDot2, qDot3, qDot4;
   float _2bz, _2bxy;
 
+  ROS_WARN("madgwickAHRSupdate");
+
   // Use IMU algorithm if magnetometer measurement invalid (avoids NaN in magnetometer normalisation)
   if (!std::isfinite(mx) || !std::isfinite(my) || !std::isfinite(mz))
   {
@@ -191,6 +261,7 @@ void ImuFilter::madgwickAHRSupdate(
 
   // Compute feedback only if accelerometer measurement valid (avoids NaN in accelerometer normalisation)
   if (!((ax == 0.0f) && (ay == 0.0f) && (az == 0.0f)))
+
   {
     // Normalise accelerometer measurement
     normalizeVector(ax, ay, az);
@@ -255,17 +326,19 @@ void ImuFilter::madgwickAHRSupdate(
   normalizeQuaternion(q0, q1, q2, q3);
 }
 
-void ImuFilter::madgwickAHRSupdateIMU(
+
+
+ void ImuFilter::madgwickCalculateGyroDrift(
     float gx, float gy, float gz,
     float ax, float ay, float az,
-    float dt)
+    float dt
+        )
 {
   float recipNorm;
   float s0, s1, s2, s3;
   float qDot1, qDot2, qDot3, qDot4;
 
-  // Rate of change of quaternion from gyroscope
-  orientationChangeFromGyro (q0, q1, q2, q3, gx, gy, gz, qDot1, qDot2, qDot3, qDot4);
+
 
   // Compute feedback only if accelerometer measurement valid (avoids NaN in accelerometer normalisation)
   if (!((ax == 0.0f) && (ay == 0.0f) && (az == 0.0f)))
@@ -293,6 +366,13 @@ void ImuFilter::madgwickAHRSupdateIMU(
 
     normalizeQuaternion(s0, s1, s2, s3);
 
+
+     // calculation of the gyro drift bias
+  calculateGyroDriftWithoutMagnetometer(q0, q1, q2, q3,  dt,  initial_data);
+
+  // Rate of change of quaternion from gyroscope
+  orientationChangeFromGyro (q0, q1, q2, q3, gx, gy, gz, qDot1, qDot2, qDot3, qDot4);
+
     // Apply feedback step
     qDot1 -= gain_ * s0;
     qDot2 -= gain_ * s1;
@@ -308,4 +388,78 @@ void ImuFilter::madgwickAHRSupdateIMU(
 
   // Normalise quaternion
   normalizeQuaternion (q0, q1, q2, q3);
+ 
+  }
+
+  
+
+
+
+void ImuFilter::madgwickAHRSupdateIMU(
+    float gx, float gy, float gz,
+    float ax, float ay, float az,
+    float dt)
+{
+  float recipNorm;
+  float s0, s1, s2, s3;
+  float qDot1, qDot2, qDot3, qDot4;
+
+ 
+
+
+
+  // Compute feedback only if accelerometer measurement valid (avoids NaN in accelerometer normalisation)
+  if (!((ax == 0.0f) && (ay == 0.0f) && (az == 0.0f)))
+  {
+    // Normalise accelerometer measurement
+    normalizeVector(ax, ay, az);
+
+    // Gradient decent algorithm corrective step
+    s0 = 0.0;  s1 = 0.0;  s2 = 0.0;  s3 = 0.0;
+    switch (world_frame_) {
+      case WorldFrame::NED:
+        // Gravity: [0, 0, -1]
+        addGradientDescentStep(q0, q1, q2, q3, 0.0, 0.0, -2.0, ax, ay, az, s0, s1, s2, s3);
+        break;
+      case WorldFrame::NWU:
+        // Gravity: [0, 0, 1]
+        addGradientDescentStep(q0, q1, q2, q3, 0.0, 0.0, 2.0, ax, ay, az, s0, s1, s2, s3);
+        break;
+      default:
+      case WorldFrame::ENU:
+        // Gravity: [0, 0, 1]
+        addGradientDescentStep(q0, q1, q2, q3, 0.0, 0.0, 2.0, ax, ay, az, s0, s1, s2, s3);
+        break;
+    }
+
+    normalizeQuaternion(s0, s1, s2, s3);
+
+
+
+  // Rate of change of quaternion from gyroscope
+  orientationChangeFromGyro (q0, q1, q2, q3, gx, gy, gz, qDot1, qDot2, qDot3, qDot4);
+
+    // Apply feedback step
+    qDot1 -= gain_ * s0;
+    qDot2 -= gain_ * s1;
+    qDot3 -= gain_ * s2;
+    qDot4 -= gain_ * s3;
+  }
+
+  // Integrate rate of change of quaternion to yield quaternion
+  q0 += qDot1 * dt;
+  q1 += qDot2 * dt;
+  q2 += qDot3 * dt;
+  q3 += qDot4 * dt;
+
+  // gyro drift compensation
+  q0 -= compensate_per_dt_w*dt;
+  q1 -= compensate_per_dt_x*dt;
+  q2 -= compensate_per_dt_y*dt;
+  q3 -= compensate_per_dt_z*dt;
+
+  // Normalise quaternion
+  normalizeQuaternion (q0, q1, q2, q3);
+
+  ROS_INFO_ONCE("Gyro drift estimated, you can use the car now.");
 }
