@@ -38,6 +38,8 @@
 #include "imu_filter_madgwick/imu_filter.h"
 #include "imu_filter_madgwick/ImuFilterMadgwickConfig.h"
 
+
+
 class ImuFilterRos
 {
   typedef sensor_msgs::Imu              ImuMsg;
@@ -55,6 +57,8 @@ class ImuFilterRos
 
     ImuFilterRos(ros::NodeHandle nh, ros::NodeHandle nh_private);
     virtual ~ImuFilterRos();
+    void setDuration(double dur);
+    // ros::Duration getDuration();
 
   private:
 
@@ -96,6 +100,10 @@ class ImuFilterRos
     // **** filter implementation
     ImuFilter filter_;
 
+    //drift compensation params
+    bool timer_flag_for_drift;
+    ros::Duration duration;
+
     // **** member functions
     void imuMagCallback(const ImuMsg::ConstPtr& imu_msg_raw,
                         const MagMsg::ConstPtr& mav_msg);
@@ -110,6 +118,7 @@ class ImuFilterRos
 
     void reconfigCallback(FilterConfig& config, uint32_t level);
     void checkTopicsTimerCallback(const ros::TimerEvent&);
+
 };
 
 #endif // IMU_FILTER_IMU_MADWICK_FILTER_ROS_H

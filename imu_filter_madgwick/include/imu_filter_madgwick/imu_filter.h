@@ -28,6 +28,8 @@
 #include <imu_filter_madgwick/world_frame.h>
 #include <iostream>
 #include <cmath>
+#include <ros/ros.h>
+
 
 class ImuFilter
 {
@@ -45,6 +47,8 @@ class ImuFilter
     // **** state variables
     double q0, q1, q2, q3;  // quaternion
     float w_bx_, w_by_, w_bz_; // 
+
+ 
 
 public:
     void setAlgorithmGain(double gain)
@@ -98,7 +102,7 @@ public:
 
     void madgwickCalculateGyroDrift(float gx, float gy, float gz,
                                float ax, float ay, float az,
-                               float dt);
+                               float dt, double duration);
 
     void madgwickAHRSupdateIMU(float gx, float gy, float gz,
                                float ax, float ay, float az,

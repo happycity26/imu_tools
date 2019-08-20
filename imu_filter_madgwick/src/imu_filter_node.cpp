@@ -24,13 +24,27 @@
 
 #include "imu_filter_madgwick/imu_filter_ros.h"
  #include <ros/console.h>
+ #include "imu_filter_madgwick/ImuDrift.h"
+
+ ImuFilterRos *imu_filter;
+
+ bool startComp(imu_filter_madgwick::ImuDrift::Request  &req,
+           imu_filter_madgwick::ImuDrift::Response &res)
+   {
+     res.dummy = true;
+    
+     ROS_INFO("request: duration=%f", (double)req.duration_for_drift);
+      imu_filter->setDuration(req.duration_for_drift);
+     return true;
+   }
 
 int main (int argc, char **argv)
 {
   ros::init (argc, argv, "ImuFilter");
   ros::NodeHandle nh;
   ros::NodeHandle nh_private("~");
-  ImuFilterRos imu_filter(nh, nh_private);
+  imu_filter = new ImuFilterRos (nh, nh_private);
+  ros::ServiceServer service = nh.advertiseService<imu_filter_madgwick::ImuDrift::Request>("startCompensate", startComp);
   ros::spin();
  
   return 0;

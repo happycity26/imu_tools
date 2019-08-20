@@ -122,7 +122,8 @@ static inline void compensateGyroDrift(
 static inline void calculateGyroDriftWithoutMagnetometer(
     float q0, float q1, float q2, float q3,
     float dt,
-    bool& initial_data)
+    bool& initial_data,
+    double duration_sec)
 {
   // w_err = 2 q x s
 
@@ -154,14 +155,14 @@ static inline void calculateGyroDriftWithoutMagnetometer(
 
 // change the denominator 30 to what second you want ,but change in the ros node as well
 
-  float duration=30;
+  
 
-  ROS_INFO_ONCE("Please wait, gyro drift is estimating now. It would take %f seconds. Do NOT move the car.",duration);
+  ROS_INFO_ONCE("Please wait, gyro drift is estimating now. It would take %f seconds. Do NOT move the car.",duration_sec);
 
-   compensate_per_dt_w = dif_w  / duration;
-  compensate_per_dt_x = dif_x  / duration;
-  compensate_per_dt_y = dif_y / duration;
-  compensate_per_dt_z = dif_z  / duration;
+   compensate_per_dt_w = dif_w  / duration_sec;
+  compensate_per_dt_x = dif_x  / duration_sec;
+  compensate_per_dt_y = dif_y / duration_sec;
+  compensate_per_dt_z = dif_z  / duration_sec;
 
   
 
@@ -234,6 +235,7 @@ ImuFilter::ImuFilter() :
     w_bx_(0.0), w_by_(0.0), w_bz_(0.0),
     zeta_ (0.0), gain_ (0.0), world_frame_(WorldFrame::ENU)
 {
+
 }
 
 ImuFilter::~ImuFilter()
@@ -331,7 +333,7 @@ void ImuFilter::madgwickAHRSupdate(
  void ImuFilter::madgwickCalculateGyroDrift(
     float gx, float gy, float gz,
     float ax, float ay, float az,
-    float dt
+    float dt, double duration
         )
 {
   float recipNorm;
@@ -368,7 +370,7 @@ void ImuFilter::madgwickAHRSupdate(
 
 
      // calculation of the gyro drift bias
-  calculateGyroDriftWithoutMagnetometer(q0, q1, q2, q3,  dt,  initial_data);
+  calculateGyroDriftWithoutMagnetometer(q0, q1, q2, q3,  dt,  initial_data, duration);
 
   // Rate of change of quaternion from gyroscope
   orientationChangeFromGyro (q0, q1, q2, q3, gx, gy, gz, qDot1, qDot2, qDot3, qDot4);

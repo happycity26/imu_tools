@@ -23,12 +23,13 @@
  */
 
 #include "imu_filter_madgwick/imu_filter_ros.h"
+#include "imu_filter_madgwick/imu_filter.h"
 #include "imu_filter_madgwick/stateless_orientation.h"
 #include "geometry_msgs/TransformStamped.h"
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 
-bool timer_flag_for_drift=1;
+
 
 
 ImuFilterRos::ImuFilterRos(ros::NodeHandle nh, ros::NodeHandle nh_private):
@@ -69,6 +70,10 @@ ImuFilterRos::ImuFilterRos(ros::NodeHandle nh, ros::NodeHandle nh_private):
     ROS_ERROR("Valid values are 'enu', 'ned' and 'nwu'. Setting to 'enu'.");
     world_frame_ = WorldFrame::ENU;
   }
+//params for drift compensation
+   bool timer_flag_for_drift=true;
+    ros::Duration duration=ros::Duration(30.0);
+
   filter_.setWorldFrame(world_frame_);
 
   // check for illegal constant_dt values
@@ -127,6 +132,12 @@ ImuFilterRos::ImuFilterRos(ros::NodeHandle nh, ros::NodeHandle nh_private):
   check_topics_timer_ = nh_.createTimer(ros::Duration(10.0), &ImuFilterRos::checkTopicsTimerCallback, this);
 }
 
+void ImuFilterRos::setDuration(double dur)
+{
+  duration=ros::Duration(dur);
+  timer_flag_for_drift=true;
+}
+
 ImuFilterRos::~ImuFilterRos()
 {
   ROS_INFO ("Destroying ImuFilter");
@@ -180,24 +191,25 @@ void ImuFilterRos::imuCallback(const ImuMsg::ConstPtr& imu_msg_raw)
 
   last_time_ = time;
 
-  //timer for gyro drift bias
-double secs =ros::Time::now().toSec();
-double last_sec;
 
-if(timer_flag_for_drift==1)
+  //timer for gyro drift bias
+ros::Time secs =ros::Time::now();
+ros::Time last_sec;
+
+if(timer_flag_for_drift)
 {
- last_sec=secs;
+ last_sec = ros::Time::now();
 timer_flag_for_drift=0;
 }
 
 //gyro drift calculation phase
 //duration is 30 seconds. If you want to change the drift compensation calculation duration change 30s to which duration you want in seconds
-double duration=30;
+
   if (!stateless_ && secs-last_sec<duration )
     filter_.madgwickCalculateGyroDrift(
       ang_vel.x, ang_vel.y, ang_vel.z,
       lin_acc.x, lin_acc.y, lin_acc.z,
-      dt);
+      dt, duration.toSec());
 
   if (!stateless_ && secs-last_sec >duration)
     filter_.madgwickAHRSupdateIMU(
