@@ -103,7 +103,8 @@ class ImuFilterRos
     //drift compensation params
     bool timer_flag_for_drift;
     ros::Duration duration;
-
+    ros::Time last_sec;
+    ros::Time secs;
     // **** member functions
     void imuMagCallback(const ImuMsg::ConstPtr& imu_msg_raw,
                         const MagMsg::ConstPtr& mav_msg);

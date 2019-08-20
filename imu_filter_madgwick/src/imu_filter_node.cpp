@@ -27,7 +27,7 @@
  #include "imu_filter_madgwick/ImuDrift.h"
 
  ImuFilterRos *imu_filter;
-
+//service is added for calling drift calculation
  bool startComp(imu_filter_madgwick::ImuDrift::Request  &req,
            imu_filter_madgwick::ImuDrift::Response &res)
    {

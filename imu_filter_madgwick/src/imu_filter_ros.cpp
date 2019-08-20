@@ -71,8 +71,8 @@ ImuFilterRos::ImuFilterRos(ros::NodeHandle nh, ros::NodeHandle nh_private):
     world_frame_ = WorldFrame::ENU;
   }
 //params for drift compensation
-   bool timer_flag_for_drift=true;
-    ros::Duration duration=ros::Duration(30.0);
+   timer_flag_for_drift=true;
+   duration=ros::Duration(30.0);
 
   filter_.setWorldFrame(world_frame_);
 
@@ -136,6 +136,7 @@ void ImuFilterRos::setDuration(double dur)
 {
   duration=ros::Duration(dur);
   timer_flag_for_drift=true;
+  ROS_INFO("setting duration");
 }
 
 ImuFilterRos::~ImuFilterRos()
@@ -193,23 +194,27 @@ void ImuFilterRos::imuCallback(const ImuMsg::ConstPtr& imu_msg_raw)
 
 
   //timer for gyro drift bias
-ros::Time secs =ros::Time::now();
-ros::Time last_sec;
+secs =ros::Time::now();
 
+//starts to take difference by equating last second to now
 if(timer_flag_for_drift)
 {
  last_sec = ros::Time::now();
-timer_flag_for_drift=0;
+timer_flag_for_drift=false;
+ROS_INFO("duration starting");
 }
 
+
 //gyro drift calculation phase
-//duration is 30 seconds. If you want to change the drift compensation calculation duration change 30s to which duration you want in seconds
+//duration is 30 seconds by default. If you want to call the compensation again just call it service named "startCompensate"
 
   if (!stateless_ && secs-last_sec<duration )
     filter_.madgwickCalculateGyroDrift(
       ang_vel.x, ang_vel.y, ang_vel.z,
       lin_acc.x, lin_acc.y, lin_acc.z,
       dt, duration.toSec());
+
+
 
   if (!stateless_ && secs-last_sec >duration)
     filter_.madgwickAHRSupdateIMU(

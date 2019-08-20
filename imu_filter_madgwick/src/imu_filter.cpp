@@ -27,12 +27,7 @@
 #include <ros/console.h>
 #include "imu_filter_madgwick/imu_filter_ros.h"
 
-//gyro drift compensation parameters
-float compensate_per_dt_x, compensate_per_dt_y, compensate_per_dt_z, compensate_per_dt_w;
 
-float dif_x=0, dif_y=0, dif_z=0, dif_w=0;
-bool initial_data=0;
-  float old_w_err_x, old_w_err_y, old_w_err_z, old_w_err_w ;
 
 // Fast inverse square-root
 // See: http://en.wikipedia.org/wiki/Methods_of_computing_square_roots#Reciprocal_of_the_square_root
@@ -123,18 +118,23 @@ static inline void calculateGyroDriftWithoutMagnetometer(
     float q0, float q1, float q2, float q3,
     float dt,
     bool& initial_data,
-    double duration_sec)
+    double duration_sec,
+    float& compensate_per_dt_x, float& compensate_per_dt_y, float& compensate_per_dt_z, float& compensate_per_dt_w,
+    float& dif_x, float& dif_y, float& dif_z, float& dif_w,
+    float& old_w_err_x, float& old_w_err_y, float& old_w_err_z, float& old_w_err_w
+        )
 {
   // w_err = 2 q x s
-
+//starts with taking filtered quaternion values
   float new_w_err_w = q0;
   float new_w_err_x = q1;
   float new_w_err_y =  q2;
   float new_w_err_z =  q3;
 
+if(initial_data==0)
+ROS_INFO("Please wait, gyro drift is estimating now. It would take %f seconds. Do NOT move the car.",duration_sec);
 
-
-
+//starts calculating difference after old data is equated to new data(filtered quaternion values)
   if(initial_data != 0)
   {
     dif_w+= new_w_err_w - old_w_err_w;
@@ -157,8 +157,9 @@ static inline void calculateGyroDriftWithoutMagnetometer(
 
   
 
-  ROS_INFO_ONCE("Please wait, gyro drift is estimating now. It would take %f seconds. Do NOT move the car.",duration_sec);
 
+
+  //at the end it calculates the compensation needed to be aplied to each value per second
    compensate_per_dt_w = dif_w  / duration_sec;
   compensate_per_dt_x = dif_x  / duration_sec;
   compensate_per_dt_y = dif_y / duration_sec;
@@ -235,7 +236,9 @@ ImuFilter::ImuFilter() :
     w_bx_(0.0), w_by_(0.0), w_bz_(0.0),
     zeta_ (0.0), gain_ (0.0), world_frame_(WorldFrame::ENU)
 {
-
+    //getting parameters ready for drift compensation call again
+    dif_x=0, dif_y=0, dif_z=0, dif_w=0;
+    initial_data=0;
 }
 
 ImuFilter::~ImuFilter()
@@ -329,7 +332,7 @@ void ImuFilter::madgwickAHRSupdate(
 }
 
 
-
+//function responsible for drift calculation of the gyro from the filtered output
  void ImuFilter::madgwickCalculateGyroDrift(
     float gx, float gy, float gz,
     float ax, float ay, float az,
@@ -370,7 +373,8 @@ void ImuFilter::madgwickAHRSupdate(
 
 
      // calculation of the gyro drift bias
-  calculateGyroDriftWithoutMagnetometer(q0, q1, q2, q3,  dt,  initial_data, duration);
+  calculateGyroDriftWithoutMagnetometer(q0, q1, q2, q3,  dt,  initial_data, duration, compensate_per_dt_x, compensate_per_dt_y, compensate_per_dt_z, compensate_per_dt_w,
+                                        dif_x, dif_y, dif_z, dif_w, old_w_err_x, old_w_err_y, old_w_err_z, old_w_err_w  );
 
   // Rate of change of quaternion from gyroscope
   orientationChangeFromGyro (q0, q1, q2, q3, gx, gy, gz, qDot1, qDot2, qDot3, qDot4);
@@ -405,8 +409,6 @@ void ImuFilter::madgwickAHRSupdateIMU(
   float recipNorm;
   float s0, s1, s2, s3;
   float qDot1, qDot2, qDot3, qDot4;
-
- 
 
 
 
@@ -463,5 +465,13 @@ void ImuFilter::madgwickAHRSupdateIMU(
   // Normalise quaternion
   normalizeQuaternion (q0, q1, q2, q3);
 
-  ROS_INFO_ONCE("Gyro drift estimated, you can use the car now.");
+if(initial_data==1)
+  ROS_INFO("Gyro drift estimated, you can use the car now.");
+
+//getting ready for another compensation
+  initial_data=0;
+  dif_w=0;
+  dif_x=0;
+  dif_y=0;
+  dif_z=0;
 }

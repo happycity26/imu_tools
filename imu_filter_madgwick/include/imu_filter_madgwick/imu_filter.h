@@ -48,6 +48,15 @@ class ImuFilter
     double q0, q1, q2, q3;  // quaternion
     float w_bx_, w_by_, w_bz_; // 
 
+//gyro drift compensation parameters
+float compensate_per_dt_x, compensate_per_dt_y, compensate_per_dt_z, compensate_per_dt_w;
+float dif_x, dif_y, dif_z, dif_w;
+bool initial_data;
+  float old_w_err_x, old_w_err_y, old_w_err_z, old_w_err_w ;
+
+
+
+
  
 
 public:
@@ -107,6 +116,8 @@ public:
     void madgwickAHRSupdateIMU(float gx, float gy, float gz,
                                float ax, float ay, float az,
                                float dt);
+
+
 };
 
 #endif // IMU_FILTER_IMU_MADWICK_FILTER_H
